@@ -1,0 +1,14 @@
+{
+  "name": "knobdeck-browser-companion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "KnobDeck Browser Companion: the Chrome and Firefox extension the KnobDeck browser-plugin controls browsers through.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "package": "node scripts/build.mjs --zip"
+  }
+}
