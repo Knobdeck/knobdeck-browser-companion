@@ -18,7 +18,7 @@ KNOBDECK_BROWSER_PLUGIN=…/knobdeck-plugins/target/release/browser-plugin npm t
 The tests run the real `browser-plugin` (`cargo build -p browser-plugin` in
 [knobdeck-plugins](https://github.com/Knobdeck/knobdeck-plugins)) against `src/background.js` with a
 recording stand-in for the browser APIs. Without `KNOBDECK_BROWSER_PLUGIN` the end-to-end tests
-skip. CI runs them on Linux and Windows (macOS too when run by hand).
+skip. CI runs them on Linux and Windows (and macOS on pull requests and manual CI runs; releases skip macOS).
 
 `test/compat/driver.mjs` is a copy of `compat/driver.mjs` in knobdeck-companion; keep them in step.
 
