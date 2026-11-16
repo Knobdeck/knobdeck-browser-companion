@@ -40,9 +40,13 @@ jobs:
         run: |
           tag="v$VERSION"
           if gh release view "$tag" >/dev/null 2>&1; then
-            test "$(git rev-list -n1 "refs/tags/$tag" 2>/dev/null || gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha)" = "$GITHUB_SHA" \
-              || { echo "::error::$tag already exists on another commit: bump the version in package.json"; exit 1; }
-            echo "::notice::$tag is already released; publishing to the stores only"
+            released=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha)
+            if [ "$released" != "$GITHUB_SHA" ]; then
+              # A retry after a workflow fix lands here too, so don't fail: the stores skip what they have.
+              echo "::warning::$tag was released from ${released:0:7}, not this commit. Nothing new ships unless you bump the version in package.json; retrying the stores for $tag only."
+            else
+              echo "::notice::$tag is already released; retrying the stores only"
+            fi
             exit 0
           fi
           awk '/^## /{n++} n==1' CHANGELOG.md | tail -n +2 > notes.md
