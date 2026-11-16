@@ -1,15 +1,16 @@
 # Store listings
 
-Text for the Chrome Web Store and Microsoft Edge Add-ons forms (addons.mozilla.org takes its
-listing from `amo-metadata.json`). Upload `knobdeck-browser-companion-chrome-<version>.zip` from a
-GitHub release to both stores.
+Text for the Chrome Web Store form (addons.mozilla.org takes its listing from
+`amo-metadata.json`). Upload `knobdeck-browser-companion-chrome-<version>.zip` from a GitHub release.
+Edge, Brave and other Chromium browsers install from the Chrome Web Store; there is no Edge Add-ons
+listing.
 
-## Shared
+## Store listing tab
 
 - **Name:** KnobDeck Browser Companion (from the manifest)
 - **Summary** (≤132 characters): Lets the KnobDeck dial and deck control this browser: tabs,
   windows, zoom, bookmarks and history, without keyboard shortcuts.
-- **Category:** Chrome: *Productivity → Tools* (*Tools* in the older form). Edge: *Productivity*.
+- **Category:** *Productivity → Tools* (*Tools* in the older form)
 - **Language:** English
 - **Homepage:** https://knobdeck.harshalkudale.com
 - **Support:** https://github.com/Knobdeck/knobdeck-browser-companion/issues
@@ -63,20 +64,10 @@ go to the KnobDeck app on the same computer to show on the dial; nothing leaves 
 tick all three certifications (not sold, not used for unrelated purposes, not used for
 creditworthiness).
 
-## Microsoft Edge Add-ons
-
-- **Notes for certification:**
-
-  ```
-  Connects only to the KnobDeck desktop app over a WebSocket on 127.0.0.1:32147 and runs the action KnobDeck sends (tabs, windows, zoom, bookmarks, history, print, stop, key events). No other network requests, no remote code; source: https://github.com/Knobdeck/knobdeck-browser-companion. Without KnobDeck running the extension stays idle.
-  ```
-
-- **Store logo:** 300×300 PNG (scale up `icons/icon-128.png` or export the KnobDeck logo).
-
 ## Images
 
-| | Chrome | Edge |
-|---|---|---|
-| Icon | 128×128 (in the zip) | 300×300 store logo |
-| Screenshots | at least 1, 1280×800 or 640×400 | optional, 1280×800 or 640×480 |
-| Small promo tile | 440×280 | optional, 440×280 |
+| | |
+|---|---|
+| Icon | 128×128 (in the zip) |
+| Screenshots | at least 1, 1280×800 or 640×400 |
+| Small promo tile | 440×280 |

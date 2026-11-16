@@ -25,8 +25,8 @@ the page only (a page can ignore synthetic keys; browser shortcuts like Ctrl+T d
 
 ## Install
 
-- **Chrome, Edge, Brave and other Chromium browsers:** from the Chrome Web Store (Edge: also
-  Microsoft Edge Add-ons).
+- **Chrome, Edge, Brave and other Chromium browsers:** from the Chrome Web Store (in Edge, turn
+  on *Allow extensions from other stores* when it asks).
 - **Firefox and Zen:** from addons.mozilla.org.
 
 Or load a build from a [release](https://github.com/Knobdeck/knobdeck-browser-companion/releases):

@@ -1,6 +1,7 @@
 # Actions → Release → Run workflow (on master) releases the version in package.json:
 # it runs CI, creates the tag v<version> and a GitHub release with both zips, then publishes to
-# the Chrome Web Store, Microsoft Edge Add-ons and addons.mozilla.org.
+# the Chrome Web Store (which Edge, Brave and other Chromium browsers install from too) and
+# addons.mozilla.org.
 #
 # A store is skipped (with a warning) until its secrets are set; see CONTRIBUTING.md. Re-running
 # for a version that already has a release skips the release and only retries the stores.
@@ -99,59 +100,6 @@ jobs:
           [ "$state" = SUCCEEDED ] || { echo "::error::upload state: $state"; exit 1; }
           curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
             -d '{}' "$base/v2/$item:publish"
-
-  edge:
-    needs: release
-    runs-on: ubuntu-latest
-    environment: release
-    env:
-      EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
-      EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
-      EDGE_PRODUCT_ID: ${{ vars.EDGE_PRODUCT_ID }}
-    steps:
-      - name: Check the store is set up
-        id: setup
-        run: |
-          if [ -n "$EDGE_API_KEY" ] && [ -n "$EDGE_CLIENT_ID" ] && [ -n "$EDGE_PRODUCT_ID" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::Edge Add-ons skipped: set EDGE_API_KEY, EDGE_CLIENT_ID and EDGE_PRODUCT_ID"
-          fi
-      - uses: actions/download-artifact@v4
-        if: steps.setup.outputs.ready
-        with:
-          name: knobdeck-browser-companion
-          path: dist
-      - name: Upload and submit for review
-        if: steps.setup.outputs.ready
-        env:
-          VERSION: ${{ needs.release.outputs.version }}
-        run: |
-          base="https://api.addons.microsoftedge.microsoft.com/v1/products/$EDGE_PRODUCT_ID/submissions"
-          auth=(-H "Authorization: ApiKey $EDGE_API_KEY" -H "X-ClientID: $EDGE_CLIENT_ID")
-          zip=$(ls dist/knobdeck-browser-companion-chrome-*.zip)
-
-          poll() { # $1: operation URL; waits until it leaves InProgress
-            for i in $(seq 60); do
-              curl -fsS "${auth[@]}" "$1" > op.json
-              status=$(jq -r .status op.json)
-              [ "$status" = InProgress ] || break
-              sleep 10
-            done
-            cat op.json; echo
-            [ "$status" = Succeeded ]
-          }
-
-          loc=$(curl -fsS -D - -o /dev/null -X POST "${auth[@]}" -H "Content-Type: application/zip" \
-            --data-binary "@$zip" "$base/draft/package" | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
-          case "$loc" in http*) ;; *) loc="$base/draft/package/operations/$loc" ;; esac
-          poll "$loc" || { echo "::error::Edge package upload failed"; exit 1; }
-
-          loc=$(curl -fsS -D - -o /dev/null -X POST "${auth[@]}" -H "Content-Type: application/json" \
-            -d "{\"notes\": \"KnobDeck Browser Companion $VERSION. Connects only to the KnobDeck app on 127.0.0.1; see the listing's privacy policy.\"}" \
-            "$base" | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
-          case "$loc" in http*) ;; *) loc="$base/operations/$loc" ;; esac
-          poll "$loc" || { echo "::error::Edge submission failed"; exit 1; }
 
   firefox:
     needs: release
