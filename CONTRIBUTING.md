@@ -46,4 +46,5 @@ the listing from the workflow. Then set these in **Settings → Environments →
 | addons.mozilla.org | `AMO_JWT_ISSUER`, `AMO_JWT_SECRET` ([API keys](https://addons.mozilla.org/developers/addon/api/key/)) | |
 
 The Firefox add-on id is `browser-companion@knobdeck.harshalkudale.com`; never change it.
-`store/amo-metadata.json` is the listing metadata AMO uses when the add-on is new.
+`store/amo-metadata.json` is the listing metadata AMO uses when the add-on is new;
+`store/LISTING.md` has the text for the Chrome Web Store and Edge forms.
