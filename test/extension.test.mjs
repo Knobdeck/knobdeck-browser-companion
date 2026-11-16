@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { after, before, describe, it } from "node:test";
 import vm from "node:vm";
-import { PluginDriver } from "../../compat/driver.mjs";
+import { PluginDriver } from "./compat/driver.mjs";
 
 const exe = process.env.KNOBDECK_BROWSER_PLUGIN;
 const source = readFileSync(new URL("../src/background.js", import.meta.url), "utf8");

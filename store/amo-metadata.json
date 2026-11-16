@@ -1,0 +1,13 @@
+{
+  "version": {
+    "license": "MIT",
+    "approval_notes": "Connects only to the KnobDeck desktop app over a WebSocket on 127.0.0.1 (no other network requests). Source is not minified or bundled; it is src/background.js in https://github.com/Knobdeck/knobdeck-browser-companion. To exercise it, install KnobDeck and its Browser Controls plugin."
+  },
+  "categories": ["tabs"],
+  "summary": {
+    "en-US": "Lets the KnobDeck dial and deck control this browser: tabs, windows, zoom, bookmarks and history, without keyboard shortcuts."
+  },
+  "homepage": { "en-US": "https://knobdeck.harshalkudale.com" },
+  "support_email": { "en-US": "support@harshalkudale.com" },
+  "support_url": { "en-US": "https://github.com/Knobdeck/knobdeck-browser-companion/issues" }
+}

@@ -1,0 +1,191 @@
+# Actions → Release → Run workflow (on master) releases the version in package.json:
+# it runs CI, creates the tag v<version> and a GitHub release with both zips, then publishes to
+# the Chrome Web Store, Microsoft Edge Add-ons and addons.mozilla.org.
+#
+# A store is skipped (with a warning) until its secrets are set; see CONTRIBUTING.md. Re-running
+# for a version that already has a release skips the release and only retries the stores.
+name: Release
+
+on:
+  workflow_dispatch:
+
+concurrency: release
+
+jobs:
+  ci:
+    if: github.ref == 'refs/heads/master'
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: knobdeck-browser-companion
+          path: dist
+      - name: Tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          tag="v$VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            test "$(git rev-list -n1 "refs/tags/$tag" 2>/dev/null || gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha)" = "$GITHUB_SHA" \
+              || { echo "::error::$tag already exists on another commit: bump the version in package.json"; exit 1; }
+            echo "::notice::$tag is already released; publishing to the stores only"
+            exit 0
+          fi
+          awk '/^## /{n++} n==1' CHANGELOG.md | tail -n +2 > notes.md
+          gh release create "$tag" dist/*.zip --target "$GITHUB_SHA" \
+            --title "KnobDeck Browser Companion $VERSION" --notes-file notes.md
+
+  chrome:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      CWS_SERVICE_ACCOUNT_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+      CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+      CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+    steps:
+      - name: Check the store is set up
+        id: setup
+        run: |
+          if [ -n "$CWS_SERVICE_ACCOUNT_KEY" ] && [ -n "$CWS_PUBLISHER_ID" ] && [ -n "$CWS_EXTENSION_ID" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Chrome Web Store skipped: set CWS_SERVICE_ACCOUNT_KEY, CWS_PUBLISHER_ID and CWS_EXTENSION_ID"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.setup.outputs.ready
+        with:
+          name: knobdeck-browser-companion
+          path: dist
+      - uses: google-github-actions/auth@v2
+        if: steps.setup.outputs.ready
+        id: auth
+        with:
+          credentials_json: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+      - name: Upload and submit for review
+        if: steps.setup.outputs.ready
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          base="https://chromewebstore.googleapis.com"
+          item="publishers/$CWS_PUBLISHER_ID/items/$CWS_EXTENSION_ID"
+          zip=$(ls dist/knobdeck-browser-companion-chrome-*.zip)
+          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/zip" \
+            --data-binary "@$zip" "$base/upload/v2/$item:upload" | tee upload.json
+          # The upload is processed asynchronously; wait until it is done before submitting.
+          for i in $(seq 30); do
+            state=$(jq -r '.uploadState // empty' upload.json)
+            [ "$state" = IN_PROGRESS ] || break
+            sleep 10
+            curl -fsS -H "Authorization: Bearer $TOKEN" "$base/v2/$item:fetchStatus" | tee status.json
+            jq '{uploadState: .lastAsyncUploadState}' status.json > upload.json
+          done
+          state=$(jq -r '.uploadState // empty' upload.json)
+          [ "$state" = SUCCEEDED ] || { echo "::error::upload state: $state"; exit 1; }
+          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            -d '{}' "$base/v2/$item:publish"
+
+  edge:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+      EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+      EDGE_PRODUCT_ID: ${{ vars.EDGE_PRODUCT_ID }}
+    steps:
+      - name: Check the store is set up
+        id: setup
+        run: |
+          if [ -n "$EDGE_API_KEY" ] && [ -n "$EDGE_CLIENT_ID" ] && [ -n "$EDGE_PRODUCT_ID" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Edge Add-ons skipped: set EDGE_API_KEY, EDGE_CLIENT_ID and EDGE_PRODUCT_ID"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.setup.outputs.ready
+        with:
+          name: knobdeck-browser-companion
+          path: dist
+      - name: Upload and submit for review
+        if: steps.setup.outputs.ready
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          base="https://api.addons.microsoftedge.microsoft.com/v1/products/$EDGE_PRODUCT_ID/submissions"
+          auth=(-H "Authorization: ApiKey $EDGE_API_KEY" -H "X-ClientID: $EDGE_CLIENT_ID")
+          zip=$(ls dist/knobdeck-browser-companion-chrome-*.zip)
+
+          poll() { # $1: operation URL; waits until it leaves InProgress
+            for i in $(seq 60); do
+              curl -fsS "${auth[@]}" "$1" > op.json
+              status=$(jq -r .status op.json)
+              [ "$status" = InProgress ] || break
+              sleep 10
+            done
+            cat op.json; echo
+            [ "$status" = Succeeded ]
+          }
+
+          loc=$(curl -fsS -D - -o /dev/null -X POST "${auth[@]}" -H "Content-Type: application/zip" \
+            --data-binary "@$zip" "$base/draft/package" | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
+          case "$loc" in http*) ;; *) loc="$base/draft/package/operations/$loc" ;; esac
+          poll "$loc" || { echo "::error::Edge package upload failed"; exit 1; }
+
+          loc=$(curl -fsS -D - -o /dev/null -X POST "${auth[@]}" -H "Content-Type: application/json" \
+            -d "{\"notes\": \"KnobDeck Browser Companion $VERSION. Connects only to the KnobDeck app on 127.0.0.1; see the listing's privacy policy.\"}" \
+            "$base" | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
+          case "$loc" in http*) ;; *) loc="$base/operations/$loc" ;; esac
+          poll "$loc" || { echo "::error::Edge submission failed"; exit 1; }
+
+  firefox:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+      AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+    steps:
+      - name: Check the store is set up
+        id: setup
+        run: |
+          if [ -n "$AMO_JWT_ISSUER" ] && [ -n "$AMO_JWT_SECRET" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::addons.mozilla.org skipped: set AMO_JWT_ISSUER and AMO_JWT_SECRET"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.setup.outputs.ready
+      - uses: actions/setup-node@v4
+        if: steps.setup.outputs.ready
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        if: steps.setup.outputs.ready
+        with:
+          name: knobdeck-browser-companion
+          path: dist
+      - name: Submit to addons.mozilla.org (listed)
+        if: steps.setup.outputs.ready
+        run: |
+          mkdir -p dist/firefox
+          unzip -q dist/knobdeck-browser-companion-firefox-*.zip -d dist/firefox
+          # amo-metadata.json fills in what a brand-new listing needs; AMO ignores it for updates.
+          npx --yes web-ext@8 sign --channel listed --source-dir dist/firefox \
+            --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET" \
+            --amo-metadata store/amo-metadata.json --approval-timeout 0 --artifacts-dir web-ext-artifacts

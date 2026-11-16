@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      plugins_ref:
+        description: knobdeck-plugins branch or tag to test against
+        default: master
+  workflow_call:
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS runners often queue for a long time, and macOS behaves like Linux here, so only
+        # a manual run (Actions → CI → Run workflow) adds it.
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-latest", "windows-latest", "macos-latest"]' || '["ubuntu-latest", "windows-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # The KnobDeck `browser-plugin`, built from source, so the tests drive the real thing.
+      - uses: actions/checkout@v4
+        with:
+          repository: Knobdeck/knobdeck-plugins
+          ref: ${{ inputs.plugins_ref || 'master' }}
+          path: knobdeck-plugins
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: knobdeck-plugins
+      - name: Build the KnobDeck browser-plugin
+        working-directory: knobdeck-plugins
+        run: cargo build --release -p browser-plugin
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test (drives the real KnobDeck plugin)
+        shell: bash
+        run: |
+          exe="$GITHUB_WORKSPACE/knobdeck-plugins/target/release/browser-plugin"
+          [ -f "$exe.exe" ] && exe="$exe.exe"
+          KNOBDECK_BROWSER_PLUGIN="$exe" npm test
+
+  package:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run package
+      - name: Lint the Firefox build
+        run: npx --yes web-ext@8 lint --source-dir dist/firefox --self-hosted=false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: knobdeck-browser-companion
+          path: dist/*.zip

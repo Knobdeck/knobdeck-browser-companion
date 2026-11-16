@@ -25,31 +25,26 @@ the page only (a page can ignore synthetic keys; browser shortcuts like Ctrl+T d
 
 ## Install
 
-Until the store listings exist, load the build from a release (`browser-v<version>`):
+- **Chrome, Edge, Brave and other Chromium browsers:** from the Chrome Web Store (Edge: also
+  Microsoft Edge Add-ons).
+- **Firefox and Zen:** from addons.mozilla.org.
 
-- **Chrome / Edge / Brave:** unzip `knobdeck-browser-companion-chrome-*.zip`, open
-  `chrome://extensions`, turn on *Developer mode*, *Load unpacked*, pick the folder.
+Or load a build from a [release](https://github.com/Knobdeck/knobdeck-browser-companion/releases):
+
+- **Chromium:** unzip `knobdeck-browser-companion-chrome-*.zip`, open `chrome://extensions`, turn on
+  *Developer mode*, *Load unpacked*, pick the folder.
 - **Firefox / Zen:** `about:debugging` → *This Firefox* → *Load Temporary Add-on…* → the
-  `manifest.json` of the unzipped `…-firefox-*.zip` (temporary until the add-on is signed).
-
-## Build and test (Node 22+)
-
-```sh
-cd browser
-npm run build            # dist/chrome and dist/firefox
-npm run package          # also dist/*.zip
-KNOBDECK_BROWSER_PLUGIN=…/knobdeck-plugins/target/release/browser-plugin npm test
-```
-
-The tests run the real `browser-plugin` against `src/background.js` with a recording stand-in for
-the browser APIs. Without `KNOBDECK_BROWSER_PLUGIN` the end-to-end tests skip.
+  `manifest.json` of the unzipped `…-firefox-*.zip` (temporary until you restart the browser).
 
 The extension reads an optional `port` from its local storage (default `32147`), matching the
 plugin's `BROWSER_PORT` setting.
 
-## Releasing
+## Privacy
 
-Bump `version` in `package.json` (the build writes it into both manifests), add a changelog entry,
-merge to `master`, push the tag `browser-v<version>`. CI tests, builds both zips and attaches them to
-the GitHub release. Store publishing (Chrome Web Store, Edge Add-ons, addons.mozilla.org) is not
-set up yet.
+It collects nothing and connects to nothing but KnobDeck on your own computer: see
+[PRIVACY.md](PRIVACY.md).
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). This is one of the
+[KnobDeck companions](https://github.com/Knobdeck/knobdeck-companion).

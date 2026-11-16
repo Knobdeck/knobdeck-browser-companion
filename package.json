@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "KnobDeck Browser Companion: the Chrome and Firefox extension the KnobDeck browser-plugin controls browsers through.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
