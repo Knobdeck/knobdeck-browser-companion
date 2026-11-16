@@ -134,6 +134,14 @@ jobs:
           mkdir -p dist/firefox
           unzip -q dist/knobdeck-browser-companion-firefox-*.zip -d dist/firefox
           # amo-metadata.json fills in what a brand-new listing needs; AMO ignores it for updates.
+          # A re-run for a version AMO already has (to retry another store) is not an error.
+          status=0
           npx --yes web-ext@8 sign --channel listed --source-dir dist/firefox \
             --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET" \
-            --amo-metadata store/amo-metadata.json --approval-timeout 0 --artifacts-dir web-ext-artifacts
+            --amo-metadata store/amo-metadata.json --approval-timeout 0 --artifacts-dir web-ext-artifacts \
+            > sign.log 2>&1 || status=$?
+          cat sign.log
+          if [ "$status" -ne 0 ]; then
+            grep -qi "already exists" sign.log || exit "$status"
+            echo "::notice::addons.mozilla.org already has this version; nothing to do"
+          fi
