@@ -1,13 +1,16 @@
-# Actions → Release → Run workflow (on master) releases the version in package.json:
-# it runs CI, creates the tag v<version> and a GitHub release with both zips, then publishes to
-# the Chrome Web Store (which Edge, Brave and other Chromium browsers install from too) and
-# addons.mozilla.org.
+# Every push to master runs this. When the version in package.json has no release yet, it runs CI,
+# creates the tag v<version> and a GitHub release with both zips, then publishes to the Chrome Web
+# Store (which Edge, Brave and other Chromium browsers install from too) and addons.mozilla.org.
+# A push that doesn't bump the version only runs CI (the stores won't take a version twice).
 #
-# A store is skipped (with a warning) until its secrets are set; see CONTRIBUTING.md. Re-running
-# for a version that already has a release skips the release and only retries the stores.
+# A store is skipped (with a warning) until its secrets are set; see CONTRIBUTING.md.
+# Actions → Release → Run workflow on master for a version that is already released skips the
+# release and only retries the stores.
 name: Release
 
 on:
+  push:
+    branches: [master]
   workflow_dispatch:
 
 concurrency: release
@@ -25,6 +28,7 @@ jobs:
       contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.tag.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
       - id: version
@@ -34,12 +38,18 @@ jobs:
           name: knobdeck-browser-companion
           path: dist
       - name: Tag and GitHub release
+        id: tag
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           tag="v$VERSION"
           if gh release view "$tag" >/dev/null 2>&1; then
+            if [ "$GITHUB_EVENT_NAME" = push ]; then
+              echo "::notice::$tag is already released; bump the version in package.json to ship this push"
+              exit 0
+            fi
+            echo "publish=true" >> "$GITHUB_OUTPUT"
             released=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha)
             if [ "$released" != "$GITHUB_SHA" ]; then
               # A retry after a workflow fix lands here too, so don't fail: the stores skip what they have.
@@ -52,9 +62,11 @@ jobs:
           awk '/^## /{n++} n==1' CHANGELOG.md | tail -n +2 > notes.md
           gh release create "$tag" dist/*.zip --target "$GITHUB_SHA" \
             --title "KnobDeck Browser Companion $VERSION" --notes-file notes.md
+          echo "publish=true" >> "$GITHUB_OUTPUT"
 
   chrome:
     needs: release
+    if: needs.release.outputs.publish == 'true'
     runs-on: ubuntu-latest
     environment: release
     env:
@@ -107,6 +119,7 @@ jobs:
 
   firefox:
     needs: release
+    if: needs.release.outputs.publish == 'true'
     runs-on: ubuntu-latest
     environment: release
     env:
@@ -155,7 +168,7 @@ jobs:
     # (CATALOG_APP_ID variable, CATALOG_APP_PRIVATE_KEY secret). Runs even when a store job failed,
     # because the GitHub release already exists.
     needs: [release, chrome, firefox]
-    if: ${{ !cancelled() && needs.release.result == 'success' }}
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.publish == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Catalog app token
