@@ -25,13 +25,13 @@ skip. CI runs them on Linux and Windows (and macOS on pull requests and manual C
 ## Releasing
 
 1. Bump `version` in `package.json` (the build writes it into both manifests) and add a
-   `CHANGELOG.md` entry. Merge to `master`.
-2. **Actions → Release → Run workflow** on `master`.
+   `CHANGELOG.md` entry. Merge to `master`; that starts the Release workflow.
 
-The workflow runs CI, creates the tag `v<version>` and a GitHub release with both zips, then submits
+A push to `master` whose version has no release yet runs CI, creates the tag `v<version>` and a GitHub release with both zips, then submits
 the Chrome zip to the Chrome Web Store and the Firefox build to
 addons.mozilla.org. Each store then reviews it before it goes live. A store whose secrets aren't set
-is skipped with a warning; re-running the workflow for a released version only retries the stores.
+is skipped with a warning. A push that doesn't bump the version only runs CI. To retry the stores
+for a released version, use **Actions → Release → Run workflow** on `master`.
 
 ### Store setup
 
