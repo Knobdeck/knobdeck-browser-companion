@@ -87,18 +87,25 @@ jobs:
         with:
           name: knobdeck-browser-companion
           path: dist
-      - uses: google-github-actions/auth@v2
-        if: steps.setup.outputs.ready
-        id: auth
-        with:
-          credentials_json: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
-          token_format: access_token
-          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
       - name: Upload and submit for review
         if: steps.setup.outputs.ready
-        env:
-          TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
+          # Access token straight from the service-account key (OAuth 2.0 JWT bearer grant), so the
+          # Google Cloud project needs only the Chrome Web Store API: no IAM Credentials API or roles.
+          b64() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+          key=$(mktemp); trap 'rm -f "$key"' EXIT
+          jq -r .private_key <<<"$CWS_SERVICE_ACCOUNT_KEY" > "$key"
+          now=$(date +%s)
+          header=$(printf '{"alg":"RS256","typ":"JWT"}' | b64)
+          claims=$(jq -cn --arg iss "$(jq -r .client_email <<<"$CWS_SERVICE_ACCOUNT_KEY")" --argjson now "$now" \
+            '{iss: $iss, scope: "https://www.googleapis.com/auth/chromewebstore",
+              aud: "https://oauth2.googleapis.com/token", iat: $now, exp: ($now + 3600)}' | b64)
+          sig=$(printf '%s.%s' "$header" "$claims" | openssl dgst -sha256 -sign "$key" | b64)
+          TOKEN=$(curl -fsS https://oauth2.googleapis.com/token \
+            --data-urlencode grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer \
+            --data-urlencode "assertion=$header.$claims.$sig" | jq -r .access_token)
+          echo "::add-mask::$TOKEN"
+
           base="https://chromewebstore.googleapis.com"
           item="publishers/$CWS_PUBLISHER_ID/items/$CWS_EXTENSION_ID"
           zip=$(ls dist/knobdeck-browser-companion-chrome-*.zip)
