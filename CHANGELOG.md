@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- No changes to the extension. First version published to the Chrome Web Store by the release
+  pipeline instead of by hand.
+
 ## 1.0.0
 
 - First release: Chrome, Edge, Brave (and other Chromium browsers) and Firefox / Zen.
